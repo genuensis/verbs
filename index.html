@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="ca-ES-valencia">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analitzador morfològic de verbs llatins</title>
+    <style>
+        :root {
+            --primari: #8B4513;
+            --primari-fosc: #6f370f;
+            --fons: #f5f5f0;
+            --paper: #ffffff;
+            --text: #333333;
+            --suau: #666666;
+            --opcio: #f3efe3;
+            --opcio-hover: #e7e0cc;
+            --vora: #d6cfbf;
+            --ok: #2E7D4F;
+            --ok-fons: #e3f3e8;
+            --ko: #B22222;
+            --ko-fons: #fbe5e5;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 24px 16px;
+            background-color: var(--fons);
+            color: var(--text);
+            line-height: 1.4;
+            -webkit-text-size-adjust: 100%;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: 0 auto;
+            background-color: var(--paper);
+            padding: 24px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        h1 {
+            color: var(--primari);
+            text-align: center;
+            border-bottom: 2px solid var(--primari);
+            padding-bottom: 10px;
+            margin: 0 0 16px;
+            font-size: clamp(1.35rem, 4.5vw, 2rem);
+            line-height: 1.2;
+        }
+
+        /* Estadístiques */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            text-align: center;
+            font-size: 0.95rem;
+            color: var(--suau);
+        }
+
+        .stats b {
+            display: block;
+            font-size: 1.35rem;
+            color: var(--primari);
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 10px;
+            background-color: #e6e0d0;
+            border-radius: 5px;
+            margin: 10px 0 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background-color: var(--primari);
+            width: 0%;
+            transition: width 0.5s;
+        }
+
+        .progress-label {
+            font-size: 0.85rem;
+            color: var(--suau);
+            text-align: right;
+        }
+
+        /* Forma verbal */
+        .verb-display {
+            font-size: clamp(1.7rem, 7vw, 2.3rem);
+            font-weight: bold;
+            text-align: center;
+            margin: 18px 0 6px;
+            padding: 14px;
+            background-color: #f9f8f2;
+            border: 1px solid #e2ddcf;
+            border-radius: 8px;
+            word-break: break-word;
+        }
+
+        .enunciado {
+            font-style: italic;
+            text-align: center;
+            color: #555;
+            margin: 0;
+        }
+
+        .glossa {
+            text-align: center;
+            color: var(--suau);
+            font-size: 0.95rem;
+            margin: 2px 0 14px;
+        }
+
+        /* Opcions */
+        .options-section {
+            margin: 16px 0;
+        }
+
+        .options-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: var(--primari);
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .options-grid.dos {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .option-btn {
+            font: inherit;
+            font-size: 1rem;
+            min-height: 44px;
+            padding: 8px 6px;
+            background-color: var(--opcio);
+            color: var(--text);
+            border: 1px solid var(--vora);
+            border-radius: 6px;
+            cursor: pointer;
+            line-height: 1.2;
+            touch-action: manipulation;
+            transition: background-color 0.15s, border-color 0.15s;
+        }
+
+        @media (hover: hover) {
+            .option-btn:not(:disabled):not(.selected):hover {
+                background-color: var(--opcio-hover);
+            }
+        }
+
+        .option-btn.selected {
+            background-color: var(--primari);
+            border-color: var(--primari);
+            color: #fff;
+        }
+
+        .option-btn:disabled {
+            cursor: default;
+            opacity: 0.55;
+        }
+
+        /* Correcció per categoria */
+        .option-btn.selected.ok {
+            background-color: var(--ok);
+            border-color: var(--ok);
+            opacity: 1;
+        }
+
+        .option-btn.selected.ko {
+            background-color: var(--ko);
+            border-color: var(--ko);
+            opacity: 1;
+        }
+
+        .option-btn.solucio {
+            background-color: var(--ok-fons);
+            border: 2px dashed var(--ok);
+            color: var(--ok);
+            font-weight: bold;
+            opacity: 1;
+        }
+
+        .option-btn:focus-visible,
+        .check-btn:focus-visible,
+        .link-btn:focus-visible {
+            outline: 3px solid #d08a3c;
+            outline-offset: 2px;
+        }
+
+        /* Etiquetes llargues / curtes segons l'amplada */
+        .curt {
+            display: none;
+        }
+
+        @media (max-width: 560px) {
+            body {
+                padding: 10px 8px;
+            }
+
+            .container {
+                padding: 16px 12px;
+            }
+
+            .llarg {
+                display: none;
+            }
+
+            .curt {
+                display: inline;
+            }
+
+            .option-btn {
+                padding: 8px 4px;
+            }
+        }
+
+        /* Botons d'acció */
+        .check-btn {
+            display: block;
+            width: 100%;
+            min-height: 48px;
+            padding: 10px;
+            margin: 20px 0 8px;
+            background-color: var(--primari);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font: inherit;
+            font-size: 1.15rem;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        @media (hover: hover) {
+            .check-btn:hover {
+                background-color: var(--primari-fosc);
+            }
+        }
+
+        .link-btn {
+            display: block;
+            margin: 0 auto;
+            background: none;
+            border: none;
+            font: inherit;
+            font-size: 0.9rem;
+            color: var(--suau);
+            text-decoration: underline;
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        /* Missatges */
+        .feedback {
+            margin: 16px 0 0;
+            min-height: 1.5em;
+            text-align: center;
+        }
+
+        .feedback .titol {
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .feedback.correct .titol {
+            color: var(--ok);
+        }
+
+        .feedback.incorrect .titol {
+            color: var(--ko);
+        }
+
+        .feedback.avis {
+            color: var(--ko);
+            font-weight: bold;
+        }
+
+        .feedback ul {
+            list-style: none;
+            padding: 0;
+            margin: 6px 0 0;
+        }
+
+        .feedback li {
+            margin: 3px 0;
+        }
+
+        .feedback .nota {
+            font-style: italic;
+            color: var(--suau);
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <main class="container">
+        <h1>Analitzador morfològic de verbs llatins</h1>
+
+        <div class="stats">
+            <div>Encerts<b id="correct-count">0</b></div>
+            <div>Errades<b id="incorrect-count">0</b></div>
+            <div>Total<b id="total-count">0</b></div>
+            <div>% encerts<b id="percent-count">–</b></div>
+        </div>
+
+        <div class="progress-container" role="progressbar" aria-label="Percentatge d'encerts" aria-valuemin="0"
+            aria-valuemax="100" aria-valuenow="0" id="progress">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+        <div class="progress-label">Percentatge d'encerts</div>
+
+        <div class="verb-display" id="verb-form" aria-live="polite"></div>
+        <p class="enunciado" id="verb-enunciado"></p>
+        <p class="glossa" id="verb-glossa"></p>
+
+        <div class="options-section" role="group" aria-labelledby="t-pn">
+            <div class="options-title" id="t-pn">Persona i nombre:</div>
+            <div class="options-grid">
+                <button type="button" class="option-btn" data-category="person-number" data-value="1s" aria-label="1a persona singular"><span class="llarg">1a persona singular</span><span class="curt">1a sing.</span></button>
+                <button type="button" class="option-btn" data-category="person-number" data-value="2s" aria-label="2a persona singular"><span class="llarg">2a persona singular</span><span class="curt">2a sing.</span></button>
+                <button type="button" class="option-btn" data-category="person-number" data-value="3s" aria-label="3a persona singular"><span class="llarg">3a persona singular</span><span class="curt">3a sing.</span></button>
+                <button type="button" class="option-btn" data-category="person-number" data-value="1p" aria-label="1a persona plural"><span class="llarg">1a persona plural</span><span class="curt">1a pl.</span></button>
+                <button type="button" class="option-btn" data-category="person-number" data-value="2p" aria-label="2a persona plural"><span class="llarg">2a persona plural</span><span class="curt">2a pl.</span></button>
+                <button type="button" class="option-btn" data-category="person-number" data-value="3p" aria-label="3a persona plural"><span class="llarg">3a persona plural</span><span class="curt">3a pl.</span></button>
+            </div>
+        </div>
+
+        <div class="options-section" role="group" aria-labelledby="t-temps">
+            <div class="options-title" id="t-temps">Temps verbal:</div>
+            <div class="options-grid">
+                <button type="button" class="option-btn" data-category="tense" data-value="present" aria-label="Present"><span class="llarg">Present</span><span class="curt">Present</span></button>
+                <button type="button" class="option-btn" data-category="tense" data-value="imperfet" aria-label="Pretèrit imperfet"><span class="llarg">Pretèrit imperfet</span><span class="curt">Pret. imperf.</span></button>
+                <button type="button" class="option-btn" data-category="tense" data-value="futur" aria-label="Futur imperfet"><span class="llarg">Futur imperfet</span><span class="curt">Fut. imperf.</span></button>
+                <button type="button" class="option-btn" data-category="tense" data-value="perfet" aria-label="Pretèrit perfet"><span class="llarg">Pretèrit perfet</span><span class="curt">Pret. perf.</span></button>
+                <button type="button" class="option-btn" data-category="tense" data-value="plusquamperfet" aria-label="Pretèrit plusquamperfet"><span class="llarg">Pretèrit plusquamperfet</span><span class="curt">Pret. plusq.</span></button>
+                <button type="button" class="option-btn" data-category="tense" data-value="futurperfet" aria-label="Futur perfet"><span class="llarg">Futur perfet</span><span class="curt">Fut. perf.</span></button>
+            </div>
+        </div>
+
+        <div class="options-section" role="group" aria-labelledby="t-mode">
+            <div class="options-title" id="t-mode">Mode:</div>
+            <div class="options-grid dos">
+                <button type="button" class="option-btn" data-category="mood" data-value="indicatiu">Indicatiu</button>
+                <button type="button" class="option-btn" data-category="mood" data-value="subjuntiu">Subjuntiu</button>
+            </div>
+        </div>
+
+        <div class="options-section" role="group" aria-labelledby="t-veu">
+            <div class="options-title" id="t-veu">Veu:</div>
+            <div class="options-grid dos">
+                <button type="button" class="option-btn" data-category="voice" data-value="activa">Activa</button>
+                <button type="button" class="option-btn" data-category="voice" data-value="passiva">Passiva</button>
+            </div>
+        </div>
+
+        <div class="feedback" id="feedback" role="status" aria-live="polite"></div>
+        <button type="button" class="check-btn" id="check-btn">Comprovar</button>
+        <button type="button" class="link-btn" id="reset-btn">Reinicia el comptador</button>
+    </main>
+
+    <script>
+        /* ==========================================================
+           DADES-INICI
+           Generador de paradigmes. Cada verb es defineix pel seu
+           enunciat i les arrels; les formes es generen per codi.
+           ========================================================== */
+
+        const PERSONES = ['1s', '2s', '3s', '1p', '2p', '3p'];
+        const DES_ACT = ['m', 's', 't', 'mus', 'tis', 'nt'];
+        const DES_PAS = ['r', 'ris', 'tur', 'mur', 'mini', 'ntur'];
+
+        // Desinències del tema de present segons la conjugació
+        const CONJ = {
+            '1': {
+                presAct: ['o', 'as', 'at', 'amus', 'atis', 'ant'],
+                presPas: ['or', 'aris', 'atur', 'amur', 'amini', 'antur'],
+                imperf: 'aba',
+                futAct: ['abo', 'abis', 'abit', 'abimus', 'abitis', 'abunt'],
+                futPas: ['abor', 'aberis', 'abitur', 'abimur', 'abimini', 'abuntur'],
+                subj: 'e'
+            },
+            '2': {
+                presAct: ['eo', 'es', 'et', 'emus', 'etis', 'ent'],
+                presPas: ['eor', 'eris', 'etur', 'emur', 'emini', 'entur'],
+                imperf: 'eba',
+                futAct: ['ebo', 'ebis', 'ebit', 'ebimus', 'ebitis', 'ebunt'],
+                futPas: ['ebor', 'eberis', 'ebitur', 'ebimur', 'ebimini', 'ebuntur'],
+                subj: 'ea'
+            },
+            '3': {
+                presAct: ['o', 'is', 'it', 'imus', 'itis', 'unt'],
+                presPas: ['or', 'eris', 'itur', 'imur', 'imini', 'untur'],
+                imperf: 'eba',
+                futAct: ['am', 'es', 'et', 'emus', 'etis', 'ent'],
+                futPas: ['ar', 'eris', 'etur', 'emur', 'emini', 'entur'],
+                subj: 'a'
+            },
+            '3i': { // conjugació mixta (capio)
+                presAct: ['io', 'is', 'it', 'imus', 'itis', 'iunt'],
+                presPas: ['ior', 'eris', 'itur', 'imur', 'imini', 'iuntur'],
+                imperf: 'ieba',
+                futAct: ['iam', 'ies', 'iet', 'iemus', 'ietis', 'ient'],
+                futPas: ['iar', 'ieris', 'ietur', 'iemur', 'iemini', 'ientur'],
+                subj: 'ia'
+            },
+            '4': {
+                presAct: ['io', 'is', 'it', 'imus', 'itis', 'iunt'],
+                presPas: ['ior', 'iris', 'itur', 'imur', 'imini', 'iuntur'],
+                imperf: 'ieba',
+                futAct: ['iam', 'ies', 'iet', 'iemus', 'ietis', 'ient'],
+                futPas: ['iar', 'ieris', 'ietur', 'iemur', 'iemini', 'ientur'],
+                subj: 'ia'
+            }
+        };
+
+        // Tema de perfet (actiu)
+        const PERFECTUM_ACT = {
+            'perfet|indicatiu': ['i', 'isti', 'it', 'imus', 'istis', 'erunt'],
+            'plusquamperfet|indicatiu': ['eram', 'eras', 'erat', 'eramus', 'eratis', 'erant'],
+            'futurperfet|indicatiu': ['ero', 'eris', 'erit', 'erimus', 'eritis', 'erint'],
+            'perfet|subjuntiu': ['erim', 'eris', 'erit', 'erimus', 'eritis', 'erint'],
+            'plusquamperfet|subjuntiu': ['issem', 'isses', 'isset', 'issemus', 'issetis', 'issent']
+        };
+
+        // Auxiliar (sum) per al tema de perfet passiu
+        const AUXILIAR = {
+            'perfet|indicatiu': ['sum', 'es', 'est', 'sumus', 'estis', 'sunt'],
+            'plusquamperfet|indicatiu': ['eram', 'eras', 'erat', 'eramus', 'eratis', 'erant'],
+            'futurperfet|indicatiu': ['ero', 'eris', 'erit', 'erimus', 'eritis', 'erunt'],
+            'perfet|subjuntiu': ['sim', 'sis', 'sit', 'simus', 'sitis', 'sint'],
+            'plusquamperfet|subjuntiu': ['essem', 'esses', 'esset', 'essemus', 'essetis', 'essent']
+        };
+
+        const suf = (base, desinencies) => desinencies.map(d => base + d);
+
+        function infectumRegular(c, arrel, infinitiu) {
+            const k = CONJ[c];
+            return {
+                activa: {
+                    'present|indicatiu': suf(arrel, k.presAct),
+                    'imperfet|indicatiu': suf(arrel + k.imperf, DES_ACT),
+                    'futur|indicatiu': suf(arrel, k.futAct),
+                    'present|subjuntiu': suf(arrel + k.subj, DES_ACT),
+                    'imperfet|subjuntiu': suf(infinitiu, DES_ACT)
+                },
+                passiva: {
+                    'present|indicatiu': suf(arrel, k.presPas),
+                    'imperfet|indicatiu': suf(arrel + k.imperf, DES_PAS),
+                    'futur|indicatiu': suf(arrel, k.futPas),
+                    'present|subjuntiu': suf(arrel + k.subj, DES_PAS),
+                    'imperfet|subjuntiu': suf(infinitiu, DES_PAS)
+                }
+            };
+        }
+
+        function perfectumActiu(temaPerfet) {
+            const r = {};
+            for (const clau in PERFECTUM_ACT) r[clau] = suf(temaPerfet, PERFECTUM_ACT[clau]);
+            return r;
+        }
+
+        function perfectumPassiu(participi) {
+            const r = {};
+            for (const clau in AUXILIAR) {
+                r[clau] = AUXILIAR[clau].map((aux, i) => (i < 3 ? participi + 'us' : participi + 'i') + ' ' + aux);
+            }
+            return r;
+        }
+
+        /* Definició dels verbs
+           c: conjugació · a: arrel de present · i: infinitiu (per a l'imperfet de subjuntiu)
+           f: tema de perfet · p: arrel del participi · actiu / passiu: veus disponibles
+           dep: deponent · sobre: formes irregulars que substitueixen les regulars */
+        const DEFINICIONS = [
+            // 1a conjugació
+            { e: 'amo, amas, amare, amavi, amatum', g: 'estimar', c: '1', a: 'am', i: 'amare', f: 'amav', p: 'amat', actiu: true, passiu: true },
+            { e: 'laudo, laudas, laudare, laudavi, laudatum', g: 'lloar', c: '1', a: 'laud', i: 'laudare', f: 'laudav', p: 'laudat', actiu: true, passiu: true },
+            { e: 'voco, vocas, vocare, vocavi, vocatum', g: 'cridar', c: '1', a: 'voc', i: 'vocare', f: 'vocav', p: 'vocat', actiu: true, passiu: true },
+            // 2a conjugació
+            { e: 'moneo, mones, monere, monui, monitum', g: 'advertir, aconsellar', c: '2', a: 'mon', i: 'monere', f: 'monu', p: 'monit', actiu: true, passiu: true },
+            { e: 'habeo, habes, habere, habui, habitum', g: 'tindre', c: '2', a: 'hab', i: 'habere', f: 'habu', p: 'habit', actiu: true, passiu: true },
+            { e: 'video, vides, videre, vidi, visum', g: 'veure', c: '2', a: 'vid', i: 'videre', f: 'vid', p: 'vis', actiu: true, passiu: true },
+            // 3a conjugació
+            { e: 'rego, regis, regere, rexi, rectum', g: 'regir, governar', c: '3', a: 'reg', i: 'regere', f: 'rex', p: 'rect', actiu: true, passiu: true },
+            { e: 'duco, ducis, ducere, duxi, ductum', g: 'conduir, guiar', c: '3', a: 'duc', i: 'ducere', f: 'dux', p: 'duct', actiu: true, passiu: true },
+            { e: 'mitto, mittis, mittere, misi, missum', g: 'enviar', c: '3', a: 'mitt', i: 'mittere', f: 'mis', p: 'miss', actiu: true, passiu: true },
+            { e: 'scribo, scribis, scribere, scripsi, scriptum', g: 'escriure', c: '3', a: 'scrib', i: 'scribere', f: 'scrips', p: 'script', actiu: true, passiu: true },
+            // 3a conjugació mixta
+            { e: 'capio, capis, capere, cepi, captum', g: 'agafar, prendre', c: '3i', a: 'cap', i: 'capere', f: 'cep', p: 'capt', actiu: true, passiu: true },
+            { e: 'accipio, accipis, accipere, accepi, acceptum', g: 'rebre', c: '3i', a: 'accip', i: 'accipere', f: 'accep', p: 'accept', actiu: true, passiu: true },
+            // 4a conjugació
+            { e: 'audio, audis, audire, audivi, auditum', g: 'sentir, escoltar', c: '4', a: 'aud', i: 'audire', f: 'audiv', p: 'audit', actiu: true, passiu: true },
+            { e: 'punio, punis, punire, punivi, punitum', g: 'castigar', c: '4', a: 'pun', i: 'punire', f: 'puniv', p: 'punit', actiu: true, passiu: true },
+            // Deponents
+            { e: 'hortor, hortaris, hortari, hortatus sum', g: 'exhortar, animar', c: '1', a: 'hort', i: 'hortare', p: 'hortat', passiu: true, dep: true },
+            { e: 'vereor, vereris, vereri, veritus sum', g: 'témer, respectar', c: '2', a: 'ver', i: 'verere', p: 'verit', passiu: true, dep: true },
+            { e: 'loquor, loqueris, loqui, locutus sum', g: 'parlar', c: '3', a: 'loqu', i: 'loquere', p: 'locut', passiu: true, dep: true },
+            // Irregulars
+            {
+                e: 'sum, es, esse, fui', g: 'ser, estar', f: 'fu', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['sum', 'es', 'est', 'sumus', 'estis', 'sunt'],
+                    'imperfet|indicatiu|activa': ['eram', 'eras', 'erat', 'eramus', 'eratis', 'erant'],
+                    'futur|indicatiu|activa': ['ero', 'eris', 'erit', 'erimus', 'eritis', 'erunt'],
+                    'present|subjuntiu|activa': ['sim', 'sis', 'sit', 'simus', 'sitis', 'sint'],
+                    'imperfet|subjuntiu|activa': ['essem', 'esses', 'esset', 'essemus', 'essetis', 'essent']
+                }
+            },
+            {
+                e: 'possum, potes, posse, potui', g: 'poder', f: 'potu', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['possum', 'potes', 'potest', 'possumus', 'potestis', 'possunt'],
+                    'imperfet|indicatiu|activa': ['poteram', 'poteras', 'poterat', 'poteramus', 'poteratis', 'poterant'],
+                    'futur|indicatiu|activa': ['potero', 'poteris', 'poterit', 'poterimus', 'poteritis', 'poterunt'],
+                    'present|subjuntiu|activa': ['possim', 'possis', 'possit', 'possimus', 'possitis', 'possint'],
+                    'imperfet|subjuntiu|activa': ['possem', 'posses', 'posset', 'possemus', 'possetis', 'possent']
+                }
+            },
+            {
+                e: 'eo, is, ire, ivi (ii), itum', g: 'anar', f: 'iv', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['eo', 'is', 'it', 'imus', 'itis', 'eunt'],
+                    'imperfet|indicatiu|activa': ['ibam', 'ibas', 'ibat', 'ibamus', 'ibatis', 'ibant'],
+                    'futur|indicatiu|activa': ['ibo', 'ibis', 'ibit', 'ibimus', 'ibitis', 'ibunt'],
+                    'present|subjuntiu|activa': ['eam', 'eas', 'eat', 'eamus', 'eatis', 'eant'],
+                    'imperfet|subjuntiu|activa': ['irem', 'ires', 'iret', 'iremus', 'iretis', 'irent']
+                }
+            },
+            {
+                e: 'fero, fers, ferre, tuli, latum', g: 'portar', c: '3', a: 'fer', i: 'ferre', f: 'tul', p: 'lat', actiu: true, passiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['fero', 'fers', 'fert', 'ferimus', 'fertis', 'ferunt'],
+                    'present|indicatiu|passiva': ['feror', 'ferris', 'fertur', 'ferimur', 'ferimini', 'feruntur']
+                }
+            },
+            {
+                e: 'volo, vis, velle, volui', g: 'voler', f: 'volu', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['volo', 'vis', 'vult', 'volumus', 'vultis', 'volunt'],
+                    'imperfet|indicatiu|activa': ['volebam', 'volebas', 'volebat', 'volebamus', 'volebatis', 'volebant'],
+                    'futur|indicatiu|activa': ['volam', 'voles', 'volet', 'volemus', 'voletis', 'volent'],
+                    'present|subjuntiu|activa': ['velim', 'velis', 'velit', 'velimus', 'velitis', 'velint'],
+                    'imperfet|subjuntiu|activa': ['vellem', 'velles', 'vellet', 'vellemus', 'velletis', 'vellent']
+                }
+            },
+            {
+                e: 'nolo, non vis, nolle, nolui', g: 'no voler', f: 'nolu', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['nolo', 'non vis', 'non vult', 'nolumus', 'non vultis', 'nolunt'],
+                    'imperfet|indicatiu|activa': ['nolebam', 'nolebas', 'nolebat', 'nolebamus', 'nolebatis', 'nolebant'],
+                    'futur|indicatiu|activa': ['nolam', 'noles', 'nolet', 'nolemus', 'noletis', 'nolent'],
+                    'present|subjuntiu|activa': ['nolim', 'nolis', 'nolit', 'nolimus', 'nolitis', 'nolint'],
+                    'imperfet|subjuntiu|activa': ['nollem', 'nolles', 'nollet', 'nollemus', 'nolletis', 'nollent']
+                }
+            },
+            {
+                e: 'malo, mavis, malle, malui', g: 'preferir', f: 'malu', actiu: true,
+                sobre: {
+                    'present|indicatiu|activa': ['malo', 'mavis', 'mavult', 'malumus', 'mavultis', 'malunt'],
+                    'imperfet|indicatiu|activa': ['malebam', 'malebas', 'malebat', 'malebamus', 'malebatis', 'malebant'],
+                    'futur|indicatiu|activa': ['malam', 'males', 'malet', 'malemus', 'maletis', 'malent'],
+                    'present|subjuntiu|activa': ['malim', 'malis', 'malit', 'malimus', 'malitis', 'malint'],
+                    'imperfet|subjuntiu|activa': ['mallem', 'malles', 'mallet', 'mallemus', 'malletis', 'mallent']
+                }
+            }
+        ];
+
+        // Construeix el paradigma d'un verb i agrupa les anàlisis per forma
+        function construeixVerb(d) {
+            const taula = {}; // 'temps|mode|veu' -> [6 formes]
+            const regular = d.c ? infectumRegular(d.c, d.a, d.i) : null;
+
+            const veus = [];
+            if (d.actiu) veus.push('activa');
+            if (d.passiu) veus.push('passiva');
+
+            for (const veu of veus) {
+                if (regular) {
+                    for (const clau in regular[veu]) taula[clau + '|' + veu] = regular[veu][clau];
+                }
+                const perfectum = veu === 'activa' ? perfectumActiu(d.f) : perfectumPassiu(d.p);
+                for (const clau in perfectum) taula[clau + '|' + veu] = perfectum[clau];
+            }
+            if (d.sobre) Object.assign(taula, d.sobre);
+
+            // Agrupar: una mateixa forma pot tindre diverses anàlisis
+            const perForma = new Map();
+            for (const clau in taula) {
+                const [tense, mood, voice] = clau.split('|');
+                taula[clau].forEach((forma, i) => {
+                    if (!perForma.has(forma)) perForma.set(forma, []);
+                    perForma.get(forma).push({ personNumber: PERSONES[i], tense, mood, voice });
+                });
+            }
+            const formes = [...perForma.entries()].map(([form, analyses]) => ({ form, analyses }));
+            return { enunciado: d.e, glossa: d.g, deponent: !!d.dep, forms: formes };
+        }
+
+        const verbDatabase = DEFINICIONS.map(construeixVerb);
+        /* DADES-FI */
+
+        /* ==========================================================
+           Interfície
+           ========================================================== */
+
+        const TEXT_PERSONA = {
+            '1s': '1a persona singular', '2s': '2a persona singular', '3s': '3a persona singular',
+            '1p': '1a persona plural', '2p': '2a persona plural', '3p': '3a persona plural'
+        };
+        const TEXT_TEMPS = {
+            present: 'Present', imperfet: 'Pretèrit imperfet', futur: 'Futur imperfet',
+            perfet: 'Pretèrit perfet', plusquamperfet: 'Pretèrit plusquamperfet', futurperfet: 'Futur perfet'
+        };
+        const TEXT_MODE = { indicatiu: "d'indicatiu", subjuntiu: 'de subjuntiu' };
+        const TEXT_VEU = { activa: 'veu activa', passiva: 'veu passiva' };
+
+        // Correspondència entre categoria dels botons i camp de l'anàlisi
+        const CAMPS = { 'person-number': 'personNumber', tense: 'tense', mood: 'mood', voice: 'voice' };
+
+        // Estat
+        let currentVerb = null;
+        let currentForm = null;
+        let selectedOptions = {};
+        let corregit = false;
+        let stats = { correct: 0, incorrect: 0, total: 0 };
+
+        // Elements del DOM
+        const verbFormElement = document.getElementById('verb-form');
+        const verbEnunciadoElement = document.getElementById('verb-enunciado');
+        const verbGlossaElement = document.getElementById('verb-glossa');
+        const feedbackElement = document.getElementById('feedback');
+        const checkButton = document.getElementById('check-btn');
+        const resetButton = document.getElementById('reset-btn');
+        const optionButtons = document.querySelectorAll('.option-btn');
+
+        /* ---------- Aleatorietat: bosses sense repetició ----------
+           1) Es trien els verbs d'una bossa barrejada: tots ixen el mateix
+              nombre de vegades i no es repeteix el verb de manera consecutiva.
+           2) Dins de cada verb, les formes ixen d'una altra bossa: no se'n
+              repeteix cap fins que no han eixit totes. */
+        function barreja(array) { // Fisher-Yates
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        let bossaVerbs = [];
+        const bossesFormes = new Map();
+        let ultimVerb = -1;
+
+        function seguentVerb() {
+            if (bossaVerbs.length === 0) {
+                bossaVerbs = barreja([...verbDatabase.keys()]);
+                // Evita repetir el verb anterior en començar una bossa nova
+                const n = bossaVerbs.length;
+                if (n > 1 && bossaVerbs[n - 1] === ultimVerb) {
+                    [bossaVerbs[0], bossaVerbs[n - 1]] = [bossaVerbs[n - 1], bossaVerbs[0]];
+                }
+            }
+            ultimVerb = bossaVerbs.pop();
+            return ultimVerb;
+        }
+
+        function seguentForma(indexVerb) {
+            let bossa = bossesFormes.get(indexVerb);
+            if (!bossa || bossa.length === 0) {
+                bossa = barreja([...verbDatabase[indexVerb].forms.keys()]);
+                bossesFormes.set(indexVerb, bossa);
+            }
+            return verbDatabase[indexVerb].forms[bossa.pop()];
+        }
+
+        /* ---------- Flux de l'exercici ---------- */
+        function loadRandomVerb() {
+            const index = seguentVerb();
+            currentVerb = verbDatabase[index];
+            currentForm = seguentForma(index);
+
+            verbFormElement.textContent = currentForm.form;
+            verbEnunciadoElement.textContent = currentVerb.enunciado;
+            verbGlossaElement.textContent = '(' + currentVerb.glossa + ')';
+
+            resetSelections();
+            corregit = false;
+            checkButton.textContent = 'Comprovar';
+            feedbackElement.innerHTML = '';
+            feedbackElement.className = 'feedback';
+        }
+
+        function resetSelections() {
+            selectedOptions = { 'person-number': null, tense: null, mood: null, voice: null };
+            optionButtons.forEach(btn => {
+                btn.classList.remove('selected', 'ok', 'ko', 'solucio');
+                btn.disabled = false;
+                btn.setAttribute('aria-pressed', 'false');
+            });
+        }
+
+        function setupEventListeners() {
+            optionButtons.forEach(btn => {
+                btn.addEventListener('click', function () {
+                    if (corregit) return;
+                    const category = this.dataset.category;
+                    document.querySelectorAll(`[data-category="${category}"]`).forEach(b => {
+                        b.classList.remove('selected');
+                        b.setAttribute('aria-pressed', 'false');
+                    });
+                    this.classList.add('selected');
+                    this.setAttribute('aria-pressed', 'true');
+                    selectedOptions[category] = this.dataset.value;
+                });
+            });
+
+            checkButton.addEventListener('click', () => {
+                if (corregit) loadRandomVerb();
+                else checkAnswer();
+            });
+
+            resetButton.addEventListener('click', () => {
+                stats = { correct: 0, incorrect: 0, total: 0 };
+                updateStatsDisplay();
+            });
+
+            // Intro: comprovar / passar a la següent forma
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Enter' && !(document.activeElement && document.activeElement.tagName === 'BUTTON')) {
+                    e.preventDefault();
+                    checkButton.click();
+                }
+            });
+        }
+
+        // En pantalles menudes, fa visible el missatge i el botó
+        function mostraBoto() {
+            checkButton.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function coincidencies(analisi) {
+            let n = 0;
+            for (const cat in CAMPS) if (selectedOptions[cat] === analisi[CAMPS[cat]]) n++;
+            return n;
+        }
+
+        function textAnalisi(a) {
+            return `${TEXT_PERSONA[a.personNumber]} · ${TEXT_TEMPS[a.tense]} ${TEXT_MODE[a.mood]} · ${TEXT_VEU[a.voice]}`;
+        }
+
+        function checkAnswer() {
+            for (const category in selectedOptions) {
+                if (selectedOptions[category] === null) {
+                    feedbackElement.textContent = 'Selecciona una opció en cada categoria.';
+                    feedbackElement.className = 'feedback avis';
+                    mostraBoto();
+                    return;
+                }
+            }
+
+            // S'accepta qualsevol de les anàlisis possibles de la forma
+            const analyses = currentForm.analyses;
+            const encert = analyses.find(a => coincidencies(a) === 4);
+            const isCorrect = !!encert;
+            // Anàlisi de referència: l'encertada o la més pròxima a la resposta
+            const referencia = encert || analyses.reduce((m, a) => coincidencies(a) > coincidencies(m) ? a : m);
+
+            // Marca cada categoria com a correcta o incorrecta
+            optionButtons.forEach(btn => {
+                btn.disabled = true;
+                const valorCorrecte = referencia[CAMPS[btn.dataset.category]];
+                if (btn.classList.contains('selected')) {
+                    btn.classList.add(btn.dataset.value === valorCorrecte ? 'ok' : 'ko');
+                } else if (btn.dataset.value === valorCorrecte) {
+                    btn.classList.add('solucio');
+                }
+            });
+
+            stats.total++;
+            if (isCorrect) stats.correct++;
+            else stats.incorrect++;
+            updateStatsDisplay();
+
+            // Missatge
+            let html = '';
+            if (isCorrect) {
+                html += '<div class="titol">Correcte!</div>';
+                const altres = analyses.filter(a => a !== encert);
+                if (altres.length) {
+                    html += '<div>Aquesta forma també pot ser:</div><ul>' +
+                        altres.map(a => `<li>${textAnalisi(a)}</li>`).join('') + '</ul>';
+                }
+            } else {
+                html += '<div class="titol">Incorrecte.</div>';
+                html += analyses.length > 1
+                    ? `<div>Aquesta forma admet ${analyses.length} anàlisis (totes són vàlides):</div>`
+                    : '<div>La resposta correcta és:</div>';
+                html += '<ul>' + analyses.map(a => `<li>${textAnalisi(a)}</li>`).join('') + '</ul>';
+            }
+            if (currentVerb.deponent) {
+                html += '<div class="nota">Verb deponent: forma passiva amb significat actiu.</div>';
+            }
+            feedbackElement.innerHTML = html;
+            feedbackElement.className = 'feedback ' + (isCorrect ? 'correct' : 'incorrect');
+
+            corregit = true;
+            checkButton.textContent = 'Següent';
+            checkButton.focus({ preventScroll: true });
+            mostraBoto();
+        }
+
+        function updateStatsDisplay() {
+            document.getElementById('correct-count').textContent = stats.correct;
+            document.getElementById('incorrect-count').textContent = stats.incorrect;
+            document.getElementById('total-count').textContent = stats.total;
+
+            const percentatge = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+            document.getElementById('percent-count').textContent = stats.total > 0 ? percentatge + ' %' : '–';
+            document.getElementById('progress-bar').style.width = percentatge + '%';
+            document.getElementById('progress').setAttribute('aria-valuenow', percentatge);
+        }
+
+        // Inici
+        setupEventListeners();
+        loadRandomVerb();
+        updateStatsDisplay();
+    </script>
+</body>
+
+</html>
